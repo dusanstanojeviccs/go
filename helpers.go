@@ -1,4 +1,4 @@
-package main
+package jmbg
 
 // Gender represents the gender derived from JMBG.
 type Gender int

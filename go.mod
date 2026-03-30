@@ -1,3 +1,3 @@
-module jmbg
+module github.com/jmbg-labs/go
 
-go 1.26.1
+go 1.21

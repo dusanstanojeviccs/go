@@ -1,4 +1,4 @@
-// Package main provides validation and parsing of Serbian unique master citizen numbers
+// Package jmbg provides validation and parsing of Serbian unique master citizen numbers
 // (JMBG - Jedinstveni Matični Broj Građana).
 //
 // JMBG format: DDMMYYYRRBBBC
@@ -9,7 +9,7 @@
 //   - RR  - Region code
 //   - BBB - Unique number (000-499 male, 500-999 female)
 //   - C   - Checksum digit
-package main
+package jmbg
 
 import (
 	"strings"
