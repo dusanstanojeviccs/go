@@ -1,84 +1,71 @@
 package jmbg
 
 import (
-	"strings"
+	"errors"
 	"testing"
 	"time"
 )
 
-func TestValidJmbgCanBeParsed(t *testing.T) {
+func TestParse(t *testing.T) {
 	j, err := Parse("0710003730015")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if j == nil {
-		t.Error("expected non-nil Jmbg instance")
+		t.Fatal("expected non-nil Jmbg instance")
 	}
 }
 
-func TestValidJmbgReturnsTrue(t *testing.T) {
+func TestValid(t *testing.T) {
 	if !Valid("0710003730015") {
 		t.Error("expected Valid to return true for valid JMBG")
 	}
-}
-
-func TestInvalidJmbgReturnsFalse(t *testing.T) {
 	if Valid("1234567890123") {
 		t.Error("expected Valid to return false for invalid JMBG")
 	}
 }
 
-func TestInvalidLengthThrowsException(t *testing.T) {
+func TestParseErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  error
+	}{
+		{"invalid length", "123456789", ErrInvalidLength},
+		{"non-numeric", "01019907100ab", ErrInvalidFormat},
+		{"invalid date", "3201990710009", ErrInvalidDate},
+		{"invalid region", "0710003660015", ErrInvalidRegion},
+		{"invalid checksum", "0710003730025", ErrInvalidChecksum},
+		{"invalid leap year", "2902979758318", ErrInvalidDate},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Parse(tt.input)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !errors.Is(err, tt.want) {
+				t.Errorf("expected %v, got: %v", tt.want, err)
+			}
+		})
+	}
+}
+
+func TestValidationErrorAs(t *testing.T) {
 	_, err := Parse("123456789")
-	if err == nil {
-		t.Fatal("expected error for invalid length")
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatal("expected ValidationError type")
 	}
-	if !strings.Contains(err.Error(), "13 digits") {
-		t.Errorf("expected error message about 13 digits, got: %v", err)
+	if !errors.Is(ve, ErrInvalidLength) {
+		t.Errorf("expected ErrInvalidLength, got: %v", ve.Err)
 	}
-}
-
-func TestNonNumericJmbgThrowsException(t *testing.T) {
-	_, err := Parse("01019907100ab")
-	if err == nil {
-		t.Fatal("expected error for non-numeric input")
-	}
-	if !strings.Contains(err.Error(), "numeric") {
-		t.Errorf("expected error message about numeric characters, got: %v", err)
+	if ve.Detail == "" {
+		t.Error("expected non-empty detail")
 	}
 }
 
-func TestInvalidDateThrowsException(t *testing.T) {
-	_, err := Parse("3201990710009")
-	if err == nil {
-		t.Fatal("expected error for invalid date")
-	}
-	if !strings.Contains(err.Error(), "not valid") {
-		t.Errorf("expected error message about invalid date, got: %v", err)
-	}
-}
-
-func TestInvalidRegionThrowsException(t *testing.T) {
-	_, err := Parse("0710003660015")
-	if err == nil {
-		t.Fatal("expected error for invalid region")
-	}
-	if !strings.Contains(err.Error(), "Region") && !strings.Contains(err.Error(), "66") {
-		t.Errorf("expected error message about region 66, got: %v", err)
-	}
-}
-
-func TestInvalidChecksumThrowsException(t *testing.T) {
-	_, err := Parse("0710003730025")
-	if err == nil {
-		t.Fatal("expected error for invalid checksum")
-	}
-	if !strings.Contains(err.Error(), "Checksum") {
-		t.Errorf("expected error message about checksum, got: %v", err)
-	}
-}
-
-func TestIsMaleReturnsTrue(t *testing.T) {
+func TestIsMale(t *testing.T) {
 	j, err := Parse("0710003730015")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -86,19 +73,12 @@ func TestIsMaleReturnsTrue(t *testing.T) {
 	if !j.IsMale() {
 		t.Error("expected IsMale to return true")
 	}
-}
-
-func TestIsMaleReturnsFalse(t *testing.T) {
-	j, err := Parse("0710003735017")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if j.IsMale() {
-		t.Error("expected IsMale to return false")
+	if j.IsFemale() {
+		t.Error("expected IsFemale to return false")
 	}
 }
 
-func TestIsFemaleReturnsTrue(t *testing.T) {
+func TestIsFemale(t *testing.T) {
 	j, err := Parse("0710003735017")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -106,19 +86,12 @@ func TestIsFemaleReturnsTrue(t *testing.T) {
 	if !j.IsFemale() {
 		t.Error("expected IsFemale to return true")
 	}
-}
-
-func TestIsFemaleReturnsFalse(t *testing.T) {
-	j, err := Parse("0710003730015")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if j.IsFemale() {
-		t.Error("expected IsFemale to return false")
+	if j.IsMale() {
+		t.Error("expected IsMale to return false")
 	}
 }
 
-func TestGetAge(t *testing.T) {
+func TestAge(t *testing.T) {
 	j, err := Parse("0710003730015")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -129,33 +102,23 @@ func TestGetAge(t *testing.T) {
 	if now.YearDay() < birthDate.YearDay() {
 		expectedAge--
 	}
-	if j.GetAge() != expectedAge {
-		t.Errorf("GetAge() = %d, want %d", j.GetAge(), expectedAge)
+	if j.Age() != expectedAge {
+		t.Errorf("Age() = %d, want %d", j.Age(), expectedAge)
 	}
 }
 
-func TestGetDate(t *testing.T) {
+func TestDate(t *testing.T) {
 	j, err := Parse("0710003730015")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	date := j.GetDate()
+	date := j.Date()
 	if date.Year() != 2003 || date.Month() != time.October || date.Day() != 7 {
-		t.Errorf("GetDate() = %v, want 2003-10-07", date)
+		t.Errorf("Date() = %v, want 2003-10-07", date)
 	}
 }
 
-func TestFormat(t *testing.T) {
-	j, err := Parse("0710003730015")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if j.Format() != "0710003730015" {
-		t.Errorf("Format() = %q, want %q", j.Format(), "0710003730015")
-	}
-}
-
-func TestToString(t *testing.T) {
+func TestString(t *testing.T) {
 	j, err := Parse("0710003730015")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -165,7 +128,7 @@ func TestToString(t *testing.T) {
 	}
 }
 
-func TestMagicGetters(t *testing.T) {
+func TestParsedFields(t *testing.T) {
 	j, err := Parse("2902992710005")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -220,29 +183,31 @@ func TestTrimWhitespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if j.Format() != "0710003730015" {
-		t.Errorf("Format() = %q, want %q", j.Format(), "0710003730015")
+	if j.String() != "0710003730015" {
+		t.Errorf("String() = %q, want %q", j.String(), "0710003730015")
 	}
 }
 
-func TestYearCalculationFor2000s(t *testing.T) {
-	j, err := Parse("0101000710009")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if j.Year != 2000 {
-		t.Errorf("Year = %d, want 2000", j.Year)
-	}
-}
+func TestYearCalculation(t *testing.T) {
+	t.Run("2000s", func(t *testing.T) {
+		j, err := Parse("0101000710009")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if j.Year != 2000 {
+			t.Errorf("Year = %d, want 2000", j.Year)
+		}
+	})
 
-func TestYearCalculationFor1900s(t *testing.T) {
-	j, err := Parse("1705978730032")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if j.Year != 1978 {
-		t.Errorf("Year = %d, want 1978", j.Year)
-	}
+	t.Run("1900s", func(t *testing.T) {
+		j, err := Parse("1705978730032")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if j.Year != 1978 {
+			t.Errorf("Year = %d, want 1978", j.Year)
+		}
+	})
 }
 
 func TestDifferentRegions(t *testing.T) {
@@ -328,15 +293,5 @@ func TestLeapYearDate(t *testing.T) {
 	}
 	if j.Year != 1992 {
 		t.Errorf("Year = %d, want 1992", j.Year)
-	}
-}
-
-func TestInvalidLeapYearDateThrowsException(t *testing.T) {
-	_, err := Parse("2902979758318")
-	if err == nil {
-		t.Fatal("expected error for invalid leap year date")
-	}
-	if !strings.Contains(err.Error(), "not valid") {
-		t.Errorf("expected error message about invalid date, got: %v", err)
 	}
 }

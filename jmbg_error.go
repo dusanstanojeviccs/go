@@ -1,16 +1,35 @@
 package jmbg
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
-// JmbgError represents a validation error.
-type JmbgError struct {
-	Message string
+// Sentinel errors for each validation failure.
+var (
+	ErrInvalidLength   = errors.New("jmbg: invalid length")
+	ErrInvalidFormat   = errors.New("jmbg: invalid format")
+	ErrInvalidDate     = errors.New("jmbg: invalid date")
+	ErrInvalidRegion   = errors.New("jmbg: invalid region")
+	ErrInvalidChecksum = errors.New("jmbg: invalid checksum")
+)
+
+// ValidationError represents a JMBG validation failure.
+// Use errors.Is to check the kind of failure and errors.As to access details.
+type ValidationError struct {
+	// Err is the underlying sentinel error (e.g., ErrInvalidLength).
+	Err error
+	// Detail provides additional context about the failure.
+	Detail string
 }
 
-func (e *JmbgError) Error() string {
-	return e.Message
+func (e *ValidationError) Error() string {
+	if e.Detail != "" {
+		return fmt.Sprintf("%s: %s", e.Err, e.Detail)
+	}
+	return e.Err.Error()
 }
 
-func newError(format string, args ...any) *JmbgError {
-	return &JmbgError{Message: fmt.Sprintf(format, args...)}
+func (e *ValidationError) Unwrap() error {
+	return e.Err
 }

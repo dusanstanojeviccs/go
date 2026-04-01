@@ -12,6 +12,7 @@
 package jmbg
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -43,65 +44,72 @@ type Jmbg struct {
 	birthDate  time.Time
 }
 
-// Parse parses and validates a JMBG string. Returns an error if invalid.
+// Parse parses and validates a JMBG string. Returns a ValidationError if invalid.
 func Parse(input string) (*Jmbg, error) {
 	input = strings.TrimSpace(input)
-	
+
 	if len(input) != 13 {
-		return nil, newError("JMBG string must have exactly 13 digits, got %d", len(input))
+		return nil, &ValidationError{
+			Err:    ErrInvalidLength,
+			Detail: fmt.Sprintf("expected 13 digits, got %d", len(input)),
+		}
 	}
 
 	for _, c := range input {
 		if c < '0' || c > '9' {
-			return nil, newError("JMBG must contain only numeric characters")
+			return nil, &ValidationError{Err: ErrInvalidFormat}
 		}
 	}
 
-	digit := func(i int) int { return int(input[i] - '0') }
-	twoDigit := func(i int) int { return digit(i)*10 + digit(i+1) }
+	dd := twoDigitAt(input, 0)
+	mm := twoDigitAt(input, 2)
+	yyy := digitAt(input, 4)*100 + digitAt(input, 5)*10 + digitAt(input, 6)
+	rr := twoDigitAt(input, 7)
+	bbb := digitAt(input, 9)*100 + digitAt(input, 10)*10 + digitAt(input, 11)
+	c := digitAt(input, 12)
 
-	dd := twoDigit(0)
-	mm := twoDigit(2)
-	yyy := digit(4)*100 + digit(5)*10 + digit(6)
-	rr := twoDigit(7)
-	bbb := digit(9)*100 + digit(10)*10 + digit(11)
-	c := digit(12)
-
-	// Determine full year
+	// Determine full year.
 	year := 1000 + yyy
 	if yyy < 800 {
 		year = 2000 + yyy
 	}
 
-	// Validate date
+	// Validate date.
 	date := time.Date(year, time.Month(mm), dd, 0, 0, 0, 0, time.UTC)
 	if date.Day() != dd || int(date.Month()) != mm || date.Year() != year {
-		return nil, newError("Date '%02d/%02d/%d' is not valid", dd, mm, year)
+		return nil, &ValidationError{
+			Err:    ErrInvalidDate,
+			Detail: fmt.Sprintf("%02d/%02d/%d", dd, mm, year),
+		}
 	}
 
-	// Validate region
+	// Validate region.
 	reg, ok := regions[rr]
 	if !ok {
-		return nil, newError("Region '%d' is not valid for JMBG", rr)
+		return nil, &ValidationError{
+			Err:    ErrInvalidRegion,
+			Detail: fmt.Sprintf("region code %d", rr),
+		}
 	}
 
-	// Validate checksum (modulo 11)
-	w := []int{7, 6, 5, 4, 3, 2, 7, 6, 5, 4, 3, 2}
+	// Validate checksum (modulo 11).
 	sum := 0
 	for i := 0; i < 12; i++ {
-		sum += digit(i) * w[i]
+		sum += digitAt(input, i) * checksumWeights[i]
 	}
 	remainder := sum % 11
-	var expectedChecksum int
-	if remainder == 0 {
-		expectedChecksum = 0
-	} else if remainder == 1 {
-		return nil, newError("Checksum is not valid")
-	} else {
-		expectedChecksum = 11 - remainder
+
+	var expected int
+	switch {
+	case remainder == 0:
+		expected = 0
+	case remainder == 1:
+		return nil, &ValidationError{Err: ErrInvalidChecksum}
+	default:
+		expected = 11 - remainder
 	}
-	if c != expectedChecksum {
-		return nil, newError("Checksum is not valid")
+	if c != expected {
+		return nil, &ValidationError{Err: ErrInvalidChecksum}
 	}
 
 	gender := Male
@@ -129,24 +137,24 @@ func Parse(input string) (*Jmbg, error) {
 	}, nil
 }
 
-// Valid returns true if the given string is a valid JMBG.
+// Valid reports whether the given string is a valid JMBG.
 func Valid(input string) bool {
 	_, err := Parse(input)
 	return err == nil
 }
 
-// IsMale returns true if the JMBG belongs to a male person.
+// IsMale reports whether the JMBG belongs to a male person.
 func (j *Jmbg) IsMale() bool {
 	return j.gender == Male
 }
 
-// IsFemale returns true if the JMBG belongs to a female person.
+// IsFemale reports whether the JMBG belongs to a female person.
 func (j *Jmbg) IsFemale() bool {
 	return j.gender == Female
 }
 
-// GetAge returns the current age in years.
-func (j *Jmbg) GetAge() int {
+// Age returns the current age in years.
+func (j *Jmbg) Age() int {
 	now := time.Now()
 	years := now.Year() - j.birthDate.Year()
 	if now.YearDay() < j.birthDate.YearDay() {
@@ -155,14 +163,9 @@ func (j *Jmbg) GetAge() int {
 	return years
 }
 
-// GetDate returns the birth date.
-func (j *Jmbg) GetDate() time.Time {
+// Date returns the birth date.
+func (j *Jmbg) Date() time.Time {
 	return j.birthDate
-}
-
-// Format returns the JMBG as a 13-digit string.
-func (j *Jmbg) Format() string {
-	return j.Original
 }
 
 // String implements the fmt.Stringer interface.
@@ -175,7 +178,7 @@ func (j *Jmbg) Gender() Gender {
 	return j.gender
 }
 
-// IsAdult returns true if the person is 18 or older.
+// IsAdult reports whether the person is 18 or older.
 func (j *Jmbg) IsAdult() bool {
-	return j.GetAge() >= 18
+	return j.Age() >= 18
 }

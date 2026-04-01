@@ -4,8 +4,8 @@ package jmbg
 type Gender int
 
 const (
-	Male   Gender = iota
-	Female Gender = iota
+	Male Gender = iota
+	Female
 )
 
 // String returns a human-readable gender string.
@@ -21,6 +21,19 @@ type Region struct {
 	Code    int
 	Name    string
 	Country string
+}
+
+// checksumWeights are the fixed weights used in the modulo-11 checksum algorithm.
+var checksumWeights = [12]int{7, 6, 5, 4, 3, 2, 7, 6, 5, 4, 3, 2}
+
+// digitAt returns the integer value of the digit at position i in s.
+func digitAt(s string, i int) int {
+	return int(s[i] - '0')
+}
+
+// twoDigitAt returns the two-digit integer starting at position i in s.
+func twoDigitAt(s string, i int) int {
+	return digitAt(s, i)*10 + digitAt(s, i+1)
 }
 
 // regions maps region codes to Region structs.
